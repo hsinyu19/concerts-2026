@@ -447,8 +447,8 @@ button:hover,a:hover{opacity:.8}
       const zoomOut = Math.abs(midView.x1 - midView.x0 - (startView.x1 - startView.x0)) > 1 || Math.abs(midView.x0 - startView.x0) > 1;
       const zoomIn = Math.abs(endView.x1 - endView.x0 - (midView.x1 - midView.x0)) > 1 || Math.abs(endView.x0 - midView.x0) > 1;
       // phases: frame the leg → travel → settle on where you arrived
-      const A = zoomOut ? 650 : 0, B = moving ? 1100 : 0, C = zoomIn ? 650 : 0;
-      const total = Math.max(A + B + C, 300);
+      const A = zoomOut ? 280 : 0, B = moving ? 520 : 0, C = zoomIn ? 280 : 0;
+      const total = Math.max(A + B + C, 150);
       const forward = i > prevI;
       const t0 = performance.now();
       const step = now => {
