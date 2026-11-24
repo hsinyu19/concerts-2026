@@ -88,7 +88,7 @@ button:hover,a:hover{opacity:.8}
 .meta dt{letter-spacing:.08em}
 .meta dd{margin:0;color:var(--ink)}
 .meta .tools{display:flex;gap:10px}
-.rail{height:calc(58px + var(--n,1) * 90vh + 10vh)}
+.rail{height:calc(58px + var(--n,1) * 40vh + 60vh)}
 
 /* Empty & status */
 .empty{position:fixed;top:calc(58px + env(safe-area-inset-top,0px));left:27%;right:0;bottom:0;display:flex;align-items:center;
@@ -556,7 +556,7 @@ button:hover,a:hover{opacity:.8}
   /* ---------- Scroll rail ---------- */
   function idxFromScroll() {
     const h = innerHeight;
-    return Math.max(0, Math.min(list.length - 1, Math.floor((scrollY + h * 0.35 - 58) / (0.9 * h))));
+    return Math.max(0, Math.min(list.length - 1, Math.floor((scrollY + h * 0.35 - 58) / (0.4 * h))));
   }
   function onScroll(force) {
     if (!list.length) return;
@@ -565,7 +565,7 @@ button:hover,a:hover{opacity:.8}
   }
   function jumpTo(i) {
     const h = innerHeight;
-    window.scrollTo({top: Math.max(0, i * 0.9 * h + 58 - 0.35 * h + 1), behavior: "instant"});
+    window.scrollTo({top: Math.max(0, i * 0.4 * h + 58 - 0.35 * h + 1), behavior: "instant"});
     cur = i; showStation();
   }
   addEventListener("scroll", onScroll, {passive: true});
