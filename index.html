@@ -1,0 +1,646 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style><title>2026 演唱會路線圖</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: 交通路線圖。左 27% 固定路線圖（一場演唱會一站，四季四線色），右 73% 看板顯示目前這一站；≤700px 改單欄側線。 */
+:root{
+  --canvas:#f3f3f3; --ink:#202222; --hairline:#c5c7c8; --muted:#606467; --focus:#428bd1;
+  --line-1:#176d9a; --line-2:#9d413b; --line-3:#3c785f; --line-4:#7959a1;
+  --land:#e3e4e4;
+  --sans:"PingFang TC","Noto Sans TC",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,"PingFang TC",monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --canvas:#17191b; --ink:#e8e9e9; --hairline:#414548; --muted:#b2b6b8; --land:#25292c; color-scheme:dark;
+  --line-1:#3f93c2; --line-2:#c4655e; --line-3:#5ea283; --line-4:#9b7fc4;
+}}
+:root[data-theme="dark"]{
+  --canvas:#17191b; --ink:#e8e9e9; --hairline:#414548; --muted:#b2b6b8; --land:#25292c; color-scheme:dark;
+  --line-1:#3f93c2; --line-2:#c4655e; --line-3:#5ea283; --line-4:#9b7fc4;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--canvas);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5}
+a,button{color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:4px}
+button:hover,a:hover{opacity:.8}
+
+/* Topbar */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:5;height:calc(58px + env(safe-area-inset-top,0px));
+  padding:env(safe-area-inset-top,0px) max(26px,env(safe-area-inset-right,0px)) 0 max(26px,env(safe-area-inset-left,0px));
+  background:var(--canvas);border-bottom:1px solid var(--hairline);
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;
+  font-size:13px;letter-spacing:.08em}
+.topbar .name{font-weight:500}
+.topbar .period{text-align:center;font-family:var(--mono);letter-spacing:0;color:var(--muted)}
+.topbar .actions{justify-self:end;display:flex;gap:10px}
+.btn{background:transparent;border:1px solid var(--hairline);border-radius:0;min-height:44px;padding:8px 15px;
+  font:inherit;font-size:14px;letter-spacing:0;cursor:pointer}
+.btn[aria-pressed="true"],.btn.danger-armed{border-color:var(--ink)}
+.btn:disabled{opacity:.5;cursor:default}
+
+/* Desktop shell */
+.map{position:fixed;top:calc(58px + env(safe-area-inset-top,0px));left:0;bottom:0;width:27%;
+  padding:24px 24px 16px max(24px,env(safe-area-inset-left,0px));border-right:1px solid var(--hairline);
+  display:flex;flex-direction:column;gap:16px;overflow:hidden}
+.map h1{margin:0;font-size:clamp(15px,1.4vw,22px);font-weight:500;letter-spacing:.04em;text-wrap:balance}
+.map .tally{margin:4px 0 0;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.route-wrap{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden}
+.route-wrap svg{display:block;width:100%;height:auto}
+.route-wrap text{font-family:var(--mono);font-size:13px;fill:var(--ink)}
+.route-wrap text .artist{fill:var(--muted)}
+.route-wrap a{cursor:pointer}
+.route-wrap a[aria-current="true"] text{font-weight:700}
+.route-wrap a[aria-current="true"] text .artist{fill:var(--ink)}
+.legend{display:grid;grid-template-columns:1fr;gap:6px 10px;font-size:12px;margin:0;padding:0;list-style:none}
+.legend li{border-left:5px solid var(--c);padding-left:7px;font-variant-numeric:tabular-nums}
+
+.viewer{position:fixed;top:calc(58px + env(safe-area-inset-top,0px));left:27%;right:0;bottom:0;
+  padding:0 max(22px,env(safe-area-inset-right,0px)) 0 22px;display:grid;grid-template-rows:45px 1fr auto;min-width:0}
+.readout{display:flex;justify-content:space-between;align-items:center;gap:16px;font-size:13px;letter-spacing:.08em;border-bottom:1px solid var(--hairline)}
+.readout .no{font-family:var(--mono);letter-spacing:0;font-variant-numeric:tabular-nums}
+.readout .chapter{letter-spacing:.12em;display:flex;align-items:center;gap:8px}
+.readout .chapter::before{content:"";width:18px;height:5px;background:var(--c)}
+.stage{padding:10px 0 16px;min-height:0;display:flex;flex-direction:column;gap:16px}
+.visual{flex:1;min-height:0;position:relative;display:flex}
+.stage .photo{flex:1;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center}
+.stage .photo img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+.stage .caption{max-width:60ch}
+.geo{flex:1;min-width:0;min-height:0;position:relative;overflow:hidden}
+.geo svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.geo .land{fill:var(--land);stroke:var(--hairline);stroke-width:1}
+.geo .city{fill:var(--canvas);stroke:var(--muted);stroke-width:2}
+.geo .city-label{font-family:var(--mono);font-size:12px;fill:var(--muted)}
+.geo .city-label.now{fill:var(--ink);font-weight:700}
+.geo .where{font-family:var(--mono);font-size:13px;fill:var(--ink)}
+.geo .where-note{font-family:var(--sans);font-size:12px;fill:var(--muted)}
+.stage:not(.no-photo) .geo{position:absolute;right:0;bottom:0;width:min(36%,320px);aspect-ratio:4/3;flex:none;
+  background:var(--canvas);border:1px solid var(--hairline)}
+.stage.no-photo .caption{padding-left:16px;border-left:5px solid var(--c)}
+.artist-name{margin:0;font-size:clamp(22px,2.4vw,36px);font-weight:500;letter-spacing:.1em;line-height:1.5;text-wrap:balance}
+.tour{margin:0;font-size:18px;font-weight:500}
+.note{margin:8px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.meta{min-height:80px;border-top:1px solid var(--hairline);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 24px;
+  padding-block:10px;color:var(--muted);font-size:13px;line-height:1.7}
+.meta dl{display:flex;flex-wrap:wrap;gap:4px 24px;margin:0}
+.meta dl div{display:flex;gap:8px}
+.meta dt{letter-spacing:.08em}
+.meta dd{margin:0;color:var(--ink)}
+.meta .tools{display:flex;gap:10px}
+.rail{height:calc(58px + var(--n,1) * 90vh + 10vh)}
+
+/* Empty & status */
+.empty{position:fixed;top:calc(58px + env(safe-area-inset-top,0px));left:27%;right:0;bottom:0;display:flex;align-items:center;
+  padding-inline:max(22px,env(safe-area-inset-left,0px)) max(22px,env(safe-area-inset-right,0px))}
+.empty-inner{max-width:46ch;padding-left:16px;border-left:5px dashed var(--hairline)}
+.empty h2{margin:0 0 6px;font-size:18px;font-weight:500}
+.empty p{margin:0 0 6px;color:var(--muted)}
+.status{color:var(--muted);font-size:12px;margin:0}
+
+/* Editor sheet */
+.sheet{position:fixed;z-index:10;top:calc(58px + env(safe-area-inset-top,0px));right:0;bottom:0;width:min(420px,100%);
+  background:var(--canvas);border-left:1px solid var(--hairline);overflow-y:auto;
+  padding:24px max(24px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) 24px}
+.sheet h2{margin:0 0 16px;font-size:18px;font-weight:500}
+.sheet form{display:grid;gap:14px}
+.field{display:grid;gap:4px}
+.field label{font-size:13px;letter-spacing:.08em;color:var(--muted)}
+.field input,.field textarea{font:inherit;font-size:16px;color:var(--ink);background:transparent;border:1px solid var(--hairline);border-radius:0;padding:8px 10px;width:100%;min-height:44px}
+.field textarea{min-height:96px;resize:vertical}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.sheet .row{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+.sheet .err{color:var(--line-2);margin:0;font-size:13px}
+.sheet .hint{color:var(--muted);font-size:12px;margin:0}
+
+/* Mobile */
+.mobile{display:none}
+@media (max-width:700px){
+  .topbar{position:sticky;top:env(safe-area-inset-top,0px);padding:0 max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));
+    height:58px;grid-template-columns:1fr auto}
+  body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--canvas)}
+  .topbar .period{display:none}
+  .map,.viewer,.rail,.empty{display:none!important}
+  .mobile{display:block;padding:24px max(16px,env(safe-area-inset-right,0px)) 40px max(16px,env(safe-area-inset-left,0px))}
+  .mobile h1{margin:0;font-size:24px;font-weight:500;letter-spacing:.1em}
+  .mobile .tally{margin:2px 0 16px;color:var(--muted);font-size:13px}
+  .m-geo{position:sticky;top:calc(58px + env(safe-area-inset-top,0px));z-index:4;height:36vh;min-height:220px;margin:0 0 32px;
+    background:var(--canvas);border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline)}
+  .m-list{display:grid;gap:0;margin:0;padding:0;list-style:none}
+  .m-st{position:relative;padding:0 0 50px 24px;border-left:4px solid var(--c);margin-left:8px;min-width:0}
+  .m-st:last-child{border-left-color:transparent}
+  .m-st::before{content:"";position:absolute;left:-10.5px;top:6px;width:13px;height:13px;border-radius:50%;background:var(--canvas);border:4px solid var(--c);box-sizing:content-box;transform:translateX(-0.5px)}
+  .m-chapter{font-size:13px;letter-spacing:.12em;color:var(--muted);margin:0}
+  .m-no{font-family:var(--mono);font-size:13px;margin:0}
+  .m-st h2{margin:2px 0 0;font-size:18px;font-weight:500}
+  .m-st .tour{font-size:14px;font-weight:400;color:var(--muted)}
+  .m-st img{width:100%;height:auto;margin-top:10px;display:block}
+  .m-meta{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.7}
+  .m-st .tools{display:flex;gap:10px;margin-top:10px}
+  .m-empty{padding-left:16px;border-left:5px dashed var(--hairline)}
+  .m-empty p{margin:0 0 6px;color:var(--muted)}
+  .sheet{top:0;width:100%;border-left:0;padding-top:calc(24px + env(safe-area-inset-top,0px))}
+  .two{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head><body>
+
+<header class="topbar">
+  <span class="name">演唱會路線圖</span>
+  <span class="period">2026.01 — 2026.12</span>
+  <span class="actions"><button class="btn" id="addBtn" type="button" hidden>新增一站</button></span>
+</header>
+
+<aside class="map" aria-label="2026 路線圖">
+  <div>
+    <h1>2026 年的演唱會</h1>
+    <p class="tally" id="tally">讀取中</p>
+  </div>
+  <div class="route-wrap" id="routeWrap"></div>
+  <ul class="legend" id="legend"></ul>
+  <p class="status" id="status" hidden></p>
+</aside>
+
+<main class="viewer" id="viewer" hidden>
+  <div class="readout"><span class="no" id="rNo"></span><span class="chapter" id="rChapter"></span></div>
+  <section class="stage" id="stage">
+    <div class="visual">
+      <div class="photo" id="photo" hidden><img id="photoImg" alt=""></div>
+      <div class="geo" id="mapDesk" role="img" aria-label="目前所在位置地圖"></div>
+    </div>
+    <div class="caption">
+      <h2 class="artist-name" id="vArtist"></h2>
+      <p class="tour" id="vTour"></p>
+      <p class="note" id="vNote"></p>
+    </div>
+  </section>
+  <div class="meta">
+    <dl id="vMeta"></dl>
+    <span class="tools" id="vTools" hidden>
+      <button class="btn" type="button" id="editBtn">編輯</button>
+    </span>
+  </div>
+</main>
+
+<section class="empty" id="empty">
+  <div class="empty-inner">
+    <h2 id="emptyTitle">路線還沒有站</h2>
+    <p id="emptyText">每看完一場演唱會，就在這條線上加一站。一月到十二月分成四段，每一季一個線色。</p>
+  </div>
+</section>
+
+<div class="rail" id="rail"></div>
+
+<section class="mobile" id="mobile">
+  <h1>2026 年的演唱會</h1>
+  <p class="tally" id="mTally">讀取中</p>
+  <div class="geo m-geo" id="mapMob" role="img" aria-label="目前所在位置地圖"></div>
+  <ol class="m-list" id="mList"></ol>
+</section>
+
+<aside class="sheet" id="sheet" hidden aria-labelledby="sheetTitle">
+  <h2 id="sheetTitle">新增一站</h2>
+  <form id="form" novalidate>
+    <div class="field"><label for="fArtist">演出者</label><input id="fArtist" required maxlength="80" autocomplete="off"></div>
+    <div class="field"><label for="fTour">巡演名稱</label><input id="fTour" maxlength="120" autocomplete="off"></div>
+    <div class="two">
+      <div class="field"><label for="fDate">日期</label><input id="fDate" type="date" min="2026-01-01" max="2026-12-31" required></div>
+      <div class="field"><label for="fCity">城市</label><input id="fCity" maxlength="40" autocomplete="off"></div>
+    </div>
+    <div class="field"><label for="fVenue">場館</label><input id="fVenue" maxlength="80" autocomplete="off"></div>
+    <div class="field"><label for="fSeat">座位</label><input id="fSeat" maxlength="60" autocomplete="off" placeholder="例：內場 B3 區 12 排"></div>
+    <div class="field"><label for="fNote">心得</label><textarea id="fNote" maxlength="4000"></textarea></div>
+    <div class="field"><label for="fPhoto">現場照片</label><input id="fPhoto" type="file" accept="image/*">
+      <p class="hint" id="photoHint">選一張照片，會完整顯示不裁切。</p></div>
+    <p class="err" id="formErr" hidden></p>
+    <div class="row">
+      <button class="btn" type="submit" id="saveBtn">儲存</button>
+      <button class="btn" type="button" id="cancelBtn">取消</button>
+      <button class="btn" type="button" id="deleteBtn" hidden>刪除這一站</button>
+    </div>
+  </form>
+</aside>
+
+<script>
+(() => {
+  const Q = [
+    {name:"第一季", months:"一至三月", c:"var(--line-1)"},
+    {name:"第二季", months:"四至六月", c:"var(--line-2)"},
+    {name:"第三季", months:"七至九月", c:"var(--line-3)"},
+    {name:"第四季", months:"十至十二月", c:"var(--line-4)"},
+  ];
+  const $ = id => document.getElementById(id);
+  const SVGNS = "http://www.w3.org/2000/svg";
+  let list = [], cur = 0, canEdit = false, db = null, assets = null, editingId = null, loaded = false;
+
+  const quarter = d => Math.min(3, Math.floor((parseInt(d.slice(5,7),10) - 1) / 3)) || 0;
+  const pad = n => String(n).padStart(2, "0");
+  const md = d => d ? d.slice(5,7) + "·" + d.slice(8,10) : "--·--";
+  const ymd = d => d ? d.replace(/-/g, ".") : "";
+  const clip = (s, n) => { const a = Array.from(s || ""); return a.length > n ? a.slice(0, n).join("") + "…" : a.join(""); };
+  const photoSrc = c => c.photo || "";
+
+  /* ---------- Route map ---------- */
+  function drawRoute() {
+    const wrap = $("routeWrap"); wrap.textContent = "";
+    if (!list.length) return;
+    const lanes = [30, 54], top = 22, step = 27;
+    const pts = list.map((c, i) => { const q = quarter(c.date); return {x: lanes[q % 2], y: top + i * step, q}; });
+    const h = top + (list.length - 1) * step + 22;
+    const svg = document.createElementNS(SVGNS, "svg");
+    svg.setAttribute("viewBox", `0 0 300 ${h}`);
+    svg.setAttribute("role", "list");
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i-1], b = pts[i];
+      const p = document.createElementNS(SVGNS, "path");
+      const d = a.x === b.x ? `M${a.x} ${a.y}V${b.y}` : `M${a.x} ${a.y}V${b.y - Math.abs(b.x - a.x)}L${b.x} ${b.y}`;
+      p.setAttribute("d", d); p.setAttribute("fill", "none");
+      p.setAttribute("stroke", `var(--line-${a.q + 1})`); p.setAttribute("stroke-width", "5");
+      p.setAttribute("stroke-linecap", "butt"); p.setAttribute("stroke-linejoin", "miter");
+      svg.appendChild(p);
+    }
+    pts.forEach((pt, i) => {
+      const c = list[i];
+      const a = document.createElementNS(SVGNS, "a");
+      a.setAttribute("href", "#"); a.setAttribute("role", "listitem"); a.dataset.i = i;
+      a.setAttribute("aria-label", `第 ${i+1} 站 ${ymd(c.date)} ${c.artist || ""}`);
+      const hit = document.createElementNS(SVGNS, "rect");
+      hit.setAttribute("x", 0); hit.setAttribute("y", pt.y - 13); hit.setAttribute("width", 300); hit.setAttribute("height", 26);
+      hit.setAttribute("fill", "transparent");
+      const circ = document.createElementNS(SVGNS, "circle");
+      circ.setAttribute("cx", pt.x); circ.setAttribute("cy", pt.y); circ.setAttribute("r", 6);
+      circ.setAttribute("fill", "var(--canvas)"); circ.setAttribute("stroke", `var(--line-${pt.q + 1})`); circ.setAttribute("stroke-width", 3);
+      const t = document.createElementNS(SVGNS, "text");
+      t.setAttribute("x", 76); t.setAttribute("y", pt.y + 4.5);
+      t.textContent = `${pad(i+1)} ${md(c.date)} `;
+      const sp = document.createElementNS(SVGNS, "tspan");
+      sp.setAttribute("class", "artist"); sp.textContent = clip(c.artist, 9);
+      t.appendChild(sp);
+      a.append(hit, circ, t);
+      a.addEventListener("click", e => { e.preventDefault(); jumpTo(i); });
+      svg.appendChild(a);
+    });
+    wrap.appendChild(svg);
+  }
+
+  function markCurrent() {
+    document.querySelectorAll("#routeWrap a").forEach(a => {
+      const on = +a.dataset.i === cur;
+      a.setAttribute("aria-current", on ? "true" : "false");
+      const circ = a.querySelector("circle"), q = quarter(list[+a.dataset.i].date);
+      circ.setAttribute("fill", on ? `var(--line-${q + 1})` : "var(--canvas)");
+      circ.setAttribute("stroke-width", on ? 5 : 3);
+    });
+    const el = document.querySelector('#routeWrap a[aria-current="true"]');
+    if (el) {
+      const wrap = $("routeWrap"), r = el.getBoundingClientRect(), w = wrap.getBoundingClientRect();
+      if (r.top < w.top || r.bottom > w.bottom) wrap.scrollTop += r.top - w.top - w.height / 2;
+    }
+  }
+
+  function drawLegend() {
+    const ul = $("legend"); ul.textContent = "";
+    Q.forEach((q, i) => {
+      const li = document.createElement("li");
+      li.style.setProperty("--c", q.c);
+      const n = list.filter(c => quarter(c.date) === i).length;
+      li.textContent = `${q.name} ${q.months}　${n} 場`;
+      ul.appendChild(li);
+    });
+  }
+
+  /* ---------- Viewer ---------- */
+  function showStation() {
+    if (!list.length) return;
+    const c = list[cur], q = quarter(c.date);
+    $("rNo").textContent = `第 ${pad(cur+1)} 站　${ymd(c.date)}`;
+    const ch = $("rChapter"); ch.textContent = `${Q[q].name}　${Q[q].months}`; ch.style.setProperty("--c", Q[q].c);
+    const stage = $("stage"); stage.style.setProperty("--c", Q[q].c);
+    const src = photoSrc(c);
+    $("photo").hidden = !src; stage.classList.toggle("no-photo", !src);
+    if (src) { $("photoImg").src = src; $("photoImg").alt = `${c.artist || ""} 現場照片`; }
+    $("vArtist").textContent = c.artist || "未填演出者";
+    $("vTour").textContent = c.tour || ""; $("vTour").hidden = !c.tour;
+    $("vNote").textContent = c.note || ""; $("vNote").hidden = !c.note;
+    const dl = $("vMeta"); dl.textContent = "";
+    [["場館", c.venue], ["城市", c.city], ["座位", c.seat]].forEach(([k, v]) => {
+      if (!v) return;
+      const d = document.createElement("div"), dt = document.createElement("dt"), dd = document.createElement("dd");
+      dt.textContent = k; dd.textContent = v; d.append(dt, dd); dl.appendChild(d);
+    });
+    $("vTools").hidden = !canEdit;
+    markCurrent();
+    mapDesk.update(cur);
+  }
+
+  /* ---------- Mobile ---------- */
+  function drawMobile() {
+    const ol = $("mList"); ol.textContent = "";
+    if (!list.length) {
+      const li = document.createElement("li"); li.className = "m-empty";
+      const p1 = document.createElement("p"); p1.textContent = loaded ? "路線還沒有站。" : "讀取中…";
+      const p2 = document.createElement("p"); p2.textContent = canEdit ? "按右上角「新增一站」，記下第一場演唱會。" : "每看完一場演唱會，這條線就多一站。";
+      li.append(p1, p2); ol.appendChild(li); return;
+    }
+    let lastQ = -1;
+    list.forEach((c, i) => {
+      const q = quarter(c.date), li = document.createElement("li");
+      li.className = "m-st"; li.style.setProperty("--c", Q[q].c);
+      if (q !== lastQ) { const ch = document.createElement("p"); ch.className = "m-chapter"; ch.textContent = `${Q[q].name}　${Q[q].months}`; li.appendChild(ch); lastQ = q; }
+      const no = document.createElement("p"); no.className = "m-no"; no.textContent = `${pad(i+1)} ${ymd(c.date)}`;
+      const h = document.createElement("h2"); h.textContent = c.artist || "未填演出者";
+      li.append(no, h);
+      if (c.tour) { const t = document.createElement("p"); t.className = "tour"; t.style.margin = "0"; t.textContent = c.tour; li.appendChild(t); }
+      const src = photoSrc(c);
+      if (src) { const img = document.createElement("img"); img.src = src; img.alt = `${c.artist || ""} 現場照片`; img.loading = "lazy"; li.appendChild(img); }
+      const meta = [c.venue, c.city, c.seat].filter(Boolean).join("　·　");
+      if (meta) { const m = document.createElement("p"); m.className = "m-meta"; m.textContent = meta; li.appendChild(m); }
+      if (c.note) { const n = document.createElement("p"); n.className = "note"; n.textContent = c.note; li.appendChild(n); }
+      if (canEdit) {
+        const tools = document.createElement("div"); tools.className = "tools";
+        const b = document.createElement("button"); b.className = "btn"; b.type = "button"; b.textContent = "編輯";
+        b.addEventListener("click", () => openSheet(c)); tools.appendChild(b); li.appendChild(tools);
+      }
+      ol.appendChild(li);
+    });
+  }
+
+  /* ---------- Geographic map: 你在哪一站 ---------- */
+  const GEO = {lon0: 121, lat0: 30, k: 100, cos: 0.8660254037844387, d: "M-1128 849L-1142 850L-1151 859L-1177 872L-1182 895L-1198 905L-1206 900L-1222 905L-1240 900L-1234 926L-1251 947L-1249 961L-1254 971L-1285 1001L-1300 1006L-1315 1041L-1317 1071L-1324 1087L-1330 1094L-1332 1103L-1309 1150L-1293 1168L-1278 1178L-1256 1205L-1259 1213L-1257 1228L-1268 1223L-1254 1234L-1235 1263L-1202 1294L-1197 1310L-1150 1351L-1140 1368L-1123 1367L-1108 1391L-1103 1391L-1101 1401L-1076 1442L-1055 1462L-1045 1500L-1032 1528L-1027 1562L-1020 1590L-1013 1600L-1018 1600L-1001 1600L-1435 1600L-1160 1600L-1179 1600L-1184 1587L-1181 1563L-1174 1555L-1166 1535L-1171 1502L-1156 1475L-1164 1461L-1188 1438L-1198 1420L-1179 1405L-1178 1396L-1218 1365L-1225 1348L-1235 1355L-1242 1351L-1252 1335L-1256 1305L-1276 1278L-1299 1259L-1326 1226L-1335 1202L-1346 1185L-1357 1181L-1372 1166L-1378 1155L-1373 1135L-1410 1120L-1472 1077L-1472 1063L-1467 1052L-1469 1033L-1450 1031L-1421 1038L-1408 1025L-1399 1005L-1392 998L-1392 992L-1399 980L-1414 977L-1419 963L-1440 956L-1426 945L-1422 935L-1442 918L-1455 909L-1468 906L-1472 914L-1472 930L-1472 722L-1472 746L-1468 725L-1460 720L-1454 719L-1446 729L-1440 730L-1427 720L-1413 718L-1403 709L-1397 686L-1362 666L-1348 676L-1338 693L-1326 697L-1313 708L-1299 703L-1286 703L-1275 714L-1252 709L-1232 722L-1238 736L-1249 743L-1251 750L-1251 766L-1242 776L-1242 802L-1236 800L-1215 808L-1207 821L-1197 828L-1189 829L-1182 839L-1175 836L-1172 840L-1157 839L-1147 834L-1128 849ZM-1224 918L-1233 914L-1230 907L-1224 918ZM-1160 878L-1173 891L-1177 891L-1171 873L-1160 878ZM-1167 907L-1178 910L-1165 897L-1167 907ZM-1210 925L-1213 926L-1220 918L-1217 913L-1207 918L-1210 925ZM2140 1124L2137 1127L2134 1119L2140 1124ZM2140 1366L2136 1366L2133 1362L2139 1362L2140 1366ZM2101 1584L2097 1589L2092 1584L2098 1581L2101 1584ZM2146 1192L2141 1194L2148 1183L2151 1186L2146 1192ZM2144 1487L2143 1489L2138 1488L2140 1479L2150 1473L2144 1487ZM2136 1503L2132 1508L2129 1497L2132 1494L2136 1503ZM-1472 968L-1472 1252L-1472 1158L-1472 1171L-1444 1218L-1408 1254L-1402 1270L-1408 1312L-1407 1335L-1401 1353L-1390 1366L-1382 1384L-1350 1401L-1353 1406L-1351 1417L-1330 1434L-1332 1451L-1341 1464L-1343 1474L-1338 1507L-1343 1541L-1349 1553L-1370 1565L-1379 1577L-1385 1575L-1388 1563L-1405 1557L-1437 1563L-1453 1560L-1472 1564L-1472 1558L-1472 1600L-1472 968ZM1 738L-9 762L-14 808L-22 804L-36 764L-59 745L-79 691L-74 660L-75 635L-32 552L4 497L32 484L39 475L51 472L78 494L80 503L71 518L72 547L53 595L35 683L14 722L1 738ZM-225 548L-221 554L-222 559L-234 556L-235 552L-225 548ZM488 -778L491 -780L491 -792L527 -828L610 -831L621 -836L639 -862L660 -818L697 -768L722 -727L729 -706L734 -674L727 -632L728 -605L733 -601L743 -605L742 -595L729 -550L711 -518L691 -510L651 -510L642 -502L645 -487L614 -493L609 -502L581 -496L575 -489L584 -478L582 -472L575 -469L565 -484L555 -482L553 -474L561 -463L548 -446L535 -455L542 -466L541 -476L522 -461L511 -444L498 -451L486 -440L483 -432L479 -431L475 -449L456 -467L459 -472L478 -470L474 -476L484 -482L469 -482L458 -515L464 -522L476 -550L486 -557L475 -561L475 -565L495 -577L498 -587L489 -592L493 -601L480 -617L480 -648L475 -669L467 -665L449 -669L447 -677L452 -687L475 -701L483 -702L501 -695L508 -682L517 -694L508 -698L498 -719L502 -730L489 -745L490 -755L482 -772L488 -778ZM671 -480L662 -474L649 -486L669 -501L671 -480ZM612 -481L611 -471L605 -470L601 -477L595 -473L592 -488L599 -492L609 -488L612 -481ZM453 -437L448 -435L442 -440L444 -444L454 -456L463 -455L466 -450L453 -437ZM478 -774L478 -760L473 -761L468 -765L465 -777L469 -782L478 -774ZM498 -434L500 -430L493 -431L489 -439L494 -440L498 -434ZM589 -461L588 -458L584 -463L588 -468L589 -461ZM469 -649L468 -643L462 -647L461 -661L467 -657L469 -649ZM448 -473L443 -471L434 -487L440 -492L448 -483L448 -473ZM859 -748L855 -745L849 -751L858 -755L860 -753L859 -748ZM461 -322L454 -322L447 -331L462 -346L499 -355L511 -352L514 -344L509 -334L494 -327L461 -322ZM839 -1230L825 -1254L830 -1257L829 -1262L817 -1269L816 -1273L830 -1281L861 -1285L872 -1290L874 -1304L881 -1314L888 -1338L887 -1347L882 -1350L881 -1370L884 -1400L888 -1407L871 -1466L863 -1480L864 -1485L873 -1491L905 -1498L916 -1508L923 -1521L940 -1533L951 -1524L1034 -1503L1049 -1513L1049 -1532L1055 -1549L1077 -1561L1084 -1588L1095 -1595L1101 -1607L1100 -1614L1114 -1625L1117 -1637L1114 -1650L1128 -1671L1132 -1695L1143 -1713L1140 -1730L1151 -1741L1168 -1745L1177 -1752L1191 -1771L1175 -1800L1185 -1800L1041 -1800L1014 -1795L994 -1771L934 -1768L894 -1773L866 -1769L863 -1771L853 -1793L841 -1800L849 -1800L-1472 -1800L-1472 -1120L-1472 -1800L2511 -1800L-1472 -1800L2511 -1800L1231 -1800L1774 -1800L1617 -1800L1604 -1798L1591 -1789L1559 -1738L1523 -1706L1506 -1674L1501 -1654L1490 -1646L1481 -1625L1445 -1582L1399 -1539L1369 -1517L1339 -1482L1321 -1467L1311 -1449L1288 -1437L1259 -1397L1254 -1383L1235 -1369L1224 -1353L1186 -1329L1101 -1283L1090 -1283L1053 -1270L1044 -1272L1039 -1281L1028 -1279L1014 -1288L994 -1291L979 -1288L982 -1324L980 -1331L955 -1312L941 -1310L954 -1328L947 -1330L929 -1320L900 -1282L891 -1277L880 -1263L841 -1266L852 -1252L839 -1230ZM1885 -1800L2054 -1800L1868 -1800L1866 -1788L1869 -1768L1883 -1745L1900 -1732L1924 -1679L1939 -1681L1947 -1675L1956 -1636L1943 -1603L1936 -1648L1930 -1656L1891 -1661L1879 -1671L1869 -1670L1854 -1656L1837 -1609L1825 -1592L1815 -1601L1804 -1645L1807 -1669L1822 -1714L1816 -1759L1834 -1800L1807 -1800L1837 -1800L1789 -1800L1885 -1800ZM2484 -1564L2464 -1559L2483 -1584L2494 -1588L2508 -1602L2511 -1621L2511 -1585L2484 -1564ZM2390 -1532L2361 -1522L2331 -1499L2319 -1496L2309 -1498L2300 -1484L2279 -1468L2270 -1455L2260 -1453L2243 -1440L2249 -1457L2264 -1466L2265 -1477L2273 -1486L2318 -1519L2328 -1523L2327 -1530L2332 -1538L2343 -1526L2366 -1528L2391 -1548L2405 -1553L2410 -1549L2408 -1541L2411 -1536L2407 -1532L2390 -1532ZM2227 -1374L2224 -1372L2218 -1374L2219 -1381L2237 -1386L2243 -1380L2227 -1374ZM2183 -1450L2196 -1442L2214 -1444L2210 -1437L2203 -1438L2191 -1428L2175 -1425L2158 -1410L2145 -1394L2129 -1385L2127 -1366L2117 -1374L2115 -1381L2118 -1387L2143 -1407L2175 -1450L2183 -1450ZM9 1138L73 1171L82 1171L90 1167L99 1151L106 1150L110 1154L114 1168L102 1194L100 1234L107 1256L120 1269L122 1282L131 1288L123 1318L98 1381L68 1392L52 1407L49 1417L53 1433L34 1468L59 1523L54 1532L54 1542L66 1583L79 1598L112 1600L104 1585L129 1568L141 1568L161 1575L178 1600L200 1600L196 1600L201 1594L211 1600L272 1600L-33 1600L-31 1576L-7 1551L-5 1535L-10 1529L-25 1522L-36 1512L-39 1523L-36 1552L-38 1556L-49 1555L-65 1521L-75 1520L-80 1515L-92 1457L-97 1413L-107 1399L-106 1375L-101 1367L-73 1395L-57 1393L-55 1389L-53 1378L-58 1360L-60 1335L-51 1304L-50 1262L-56 1236L-35 1149L-16 1140L9 1138ZM80 1110L74 1118L71 1116L77 1101L82 1099L86 1104L80 1110ZM45 1064L46 1073L41 1073L32 1064L34 1060L45 1064ZM83 963L79 964L82 955L89 953L83 963ZM76 922L72 930L69 930L73 916L76 922ZM290 1600L263 1600L271 1600L279 1592L286 1600L296 1600L290 1600ZM102 1595L102 1599L83 1584L83 1577L102 1595ZM89 1500L91 1503L84 1511L88 1524L86 1534L81 1534L80 1520L71 1504L73 1496L84 1495L89 1500ZM22 1092L21 1098L17 1095L18 1082L22 1092ZM639 -862L621 -836L610 -831L527 -828L491 -792L491 -780L488 -778L465 -788L451 -783L443 -774L437 -787L428 -787L413 -799L406 -796L397 -781L385 -773L377 -772L373 -784L345 -793L368 -806L364 -808L320 -813L336 -823L336 -834L352 -856L373 -866L394 -869L361 -881L360 -887L382 -929L378 -953L355 -959L327 -976L324 -974L323 -965L315 -961L308 -979L290 -991L293 -1010L337 -1046L346 -1047L353 -1055L382 -1066L402 -1078L410 -1087L432 -1090L475 -1136L485 -1164L511 -1178L520 -1174L535 -1153L579 -1144L607 -1145L619 -1139L632 -1156L631 -1161L611 -1186L610 -1199L686 -1204L710 -1222L712 -1231L720 -1241L729 -1244L738 -1239L753 -1245L767 -1296L771 -1300L787 -1297L800 -1289L801 -1274L811 -1263L823 -1257L839 -1230L835 -1227L819 -1230L800 -1218L758 -1171L752 -1160L752 -1149L758 -1139L759 -1130L754 -1112L757 -1093L754 -1086L722 -1073L702 -1049L667 -1032L651 -1013L633 -1004L603 -1000L595 -990L569 -978L565 -970L567 -946L565 -938L559 -940L556 -937L553 -930L554 -921L588 -908L604 -890L628 -874L639 -862ZM338 -954L333 -951L333 -956L341 -961L338 -954ZM-1472 -1800L-374 -1800L-474 -1800L-466 -1787L-442 -1769L-413 -1786L-367 -1787L-340 -1781L-316 -1765L-280 -1799L-217 -1798L-194 -1776L-166 -1765L-159 -1753L-148 -1747L-145 -1741L-112 -1715L-105 -1698L-95 -1686L-95 -1673L-98 -1667L-112 -1661L-159 -1664L-187 -1676L-197 -1669L-233 -1672L-254 -1667L-282 -1652L-299 -1659L-308 -1659L-317 -1636L-359 -1639L-384 -1629L-410 -1596L-414 -1589L-412 -1580L-416 -1574L-439 -1563L-461 -1546L-505 -1539L-527 -1538L-542 -1542L-558 -1539L-570 -1520L-599 -1497L-642 -1475L-718 -1488L-728 -1492L-744 -1506L-788 -1506L-812 -1483L-831 -1437L-814 -1411L-794 -1394L-785 -1382L-785 -1371L-799 -1366L-818 -1350L-865 -1334L-918 -1277L-1010 -1244L-1066 -1242L-1111 -1245L-1232 -1229L-1368 -1174L-1387 -1160L-1398 -1164L-1429 -1166L-1429 -1188L-1472 -1180L-1472 -1175L-1472 -1800ZM-1472 762L-1472 930L-1472 914L-1468 906L-1455 909L-1442 918L-1422 935L-1426 945L-1440 956L-1419 963L-1414 977L-1399 980L-1392 992L-1392 998L-1399 1005L-1408 1025L-1421 1038L-1450 1031L-1469 1033L-1467 1052L-1472 1063L-1472 1077L-1410 1120L-1373 1135L-1378 1155L-1372 1166L-1357 1181L-1346 1185L-1335 1202L-1326 1226L-1299 1259L-1276 1278L-1256 1305L-1252 1335L-1242 1351L-1235 1355L-1225 1348L-1218 1365L-1178 1396L-1179 1405L-1198 1420L-1188 1438L-1164 1461L-1156 1475L-1171 1502L-1167 1513L-1167 1530L-1176 1544L-1187 1541L-1203 1558L-1210 1557L-1218 1567L-1228 1569L-1256 1542L-1268 1555L-1280 1552L-1285 1563L-1301 1566L-1288 1595L-1293 1600L-1314 1600L-1322 1592L-1339 1584L-1355 1589L-1368 1574L-1370 1565L-1349 1553L-1343 1541L-1338 1507L-1343 1474L-1341 1464L-1332 1451L-1330 1434L-1351 1417L-1353 1406L-1350 1401L-1382 1384L-1390 1366L-1401 1353L-1407 1335L-1408 1312L-1402 1270L-1408 1254L-1444 1218L-1472 1171L-1472 1158L-1472 1252L-1472 762ZM1071 -620L1067 -617L1060 -618L1056 -623L1057 -629L1065 -634L1072 -625L1071 -620ZM1502 -782L1492 -783L1497 -785L1500 -797L1494 -799L1494 -808L1516 -832L1511 -808L1522 -807L1515 -790L1502 -782ZM1206 -429L1197 -420L1189 -421L1184 -429L1198 -447L1213 -454L1204 -440L1206 -429ZM833 -26L818 -26L813 -39L822 -47L835 -39L838 -37L833 -26ZM863 -40L855 -39L855 -44L861 -67L871 -83L871 -64L863 -40ZM787 -223L780 -219L776 -224L781 -229L777 -235L780 -252L794 -254L797 -234L787 -223ZM717 -412L711 -408L709 -414L711 -432L722 -428L717 -412ZM726 -435L724 -431L716 -437L721 -461L732 -469L734 -454L726 -442L726 -435ZM664 -278L679 -276L684 -265L675 -264L671 -259L666 -260L662 -266L664 -278ZM812 -242L805 -242L800 -246L811 -253L819 -252L812 -242ZM1738 -1533L1735 -1527L1730 -1546L1737 -1545L1738 -1533ZM1758 -1512L1745 -1515L1744 -1521L1749 -1525L1754 -1523L1760 -1515L1758 -1512ZM1601 -1208L1597 -1208L1596 -1220L1607 -1224L1601 -1208ZM1156 -448L1148 -442L1142 -452L1154 -453L1158 -452L1156 -448ZM1598 -473L1597 -468L1593 -469L1591 -478L1596 -478L1598 -473ZM700 -284L697 -283L693 -295L702 -313L709 -299L700 -284ZM735 -322L725 -318L733 -333L742 -336L735 -322ZM762 -375L756 -371L751 -374L755 -386L760 -383L762 -375ZM1003 -411L1000 -407L993 -409L1000 -417L1003 -411ZM976 -394L980 -391L991 -391L984 -385L971 -387L971 -395L976 -394ZM755 -166L752 -164L754 -172L761 -179L762 -174L755 -166ZM1835 338L1828 328L1833 329L1835 338ZM1977 -1412L2001 -1410L2034 -1395L2054 -1393L2067 -1398L2111 -1433L2109 -1423L2089 -1387L2087 -1377L2091 -1366L2108 -1330L2121 -1328L2137 -1339L2151 -1339L2132 -1329L2122 -1318L2108 -1318L2072 -1300L2046 -1295L2009 -1297L1989 -1288L1956 -1260L1943 -1242L1937 -1232L1932 -1208L1926 -1200L1863 -1226L1806 -1258L1767 -1255L1731 -1234L1707 -1256L1687 -1256L1676 -1244L1674 -1229L1691 -1213L1709 -1212L1745 -1181L1732 -1174L1703 -1182L1688 -1167L1679 -1152L1658 -1142L1649 -1147L1645 -1158L1655 -1191L1650 -1207L1631 -1228L1633 -1258L1636 -1265L1655 -1273L1683 -1295L1688 -1305L1680 -1317L1679 -1330L1688 -1334L1713 -1321L1744 -1318L1758 -1320L1765 -1328L1768 -1338L1766 -1364L1788 -1402L1789 -1426L1798 -1448L1800 -1472L1794 -1494L1783 -1516L1790 -1540L1804 -1544L1813 -1551L1855 -1512L1895 -1467L1930 -1440L1977 -1412ZM881 -360L898 -357L917 -365L926 -360L927 -350L912 -327L944 -325L940 -312L948 -305L945 -297L953 -292L923 -247L906 -188L906 -167L895 -140L872 -144L869 -138L874 -126L858 -111L839 -101L848 -127L840 -158L848 -162L847 -171L836 -172L828 -156L826 -140L835 -127L830 -118L797 -129L792 -141L805 -145L807 -160L796 -177L796 -209L814 -222L835 -262L823 -266L829 -273L827 -283L812 -309L800 -318L790 -310L794 -301L795 -285L808 -285L809 -270L801 -268L784 -277L759 -257L764 -273L753 -288L752 -306L765 -289L779 -285L771 -302L743 -324L746 -334L750 -336L766 -332L764 -344L786 -352L794 -360L811 -363L821 -384L841 -393L862 -387L871 -367L881 -360ZM1157 -426L1169 -422L1181 -423L1181 -404L1186 -393L1184 -385L1190 -382L1158 -361L1147 -344L1142 -325L1122 -345L1094 -351L1064 -336L1052 -308L1041 -298L1037 -284L1028 -275L1022 -275L1008 -276L1014 -290L995 -292L995 -301L990 -306L997 -329L988 -333L988 -343L955 -334L1008 -369L1021 -399L1034 -410L1038 -409L1051 -393L1056 -393L1090 -402L1095 -413L1091 -424L1100 -424L1121 -435L1132 -436L1157 -426ZM1752 -1137L1771 -1140L1767 -1110L1769 -1072L1772 -1061L1788 -1047L1801 -1029L1818 -979L1817 -943L1810 -911L1789 -898L1780 -876L1773 -840L1741 -834L1729 -815L1726 -795L1735 -747L1732 -711L1729 -700L1714 -685L1709 -673L1700 -650L1695 -623L1699 -606L1721 -572L1701 -566L1685 -551L1682 -527L1676 -518L1650 -504L1639 -490L1628 -496L1632 -501L1630 -530L1654 -559L1645 -567L1631 -566L1627 -561L1625 -549L1615 -541L1616 -532L1623 -525L1617 -515L1614 -514L1600 -530L1581 -528L1570 -515L1566 -484L1550 -463L1545 -462L1538 -470L1542 -497L1550 -502L1534 -512L1522 -509L1494 -473L1489 -460L1433 -466L1391 -458L1392 -462L1411 -470L1409 -477L1389 -477L1382 -484L1381 -472L1378 -471L1375 -473L1373 -498L1377 -503L1369 -505L1359 -498L1345 -468L1352 -459L1375 -443L1373 -432L1328 -418L1292 -356L1273 -349L1252 -355L1228 -390L1224 -401L1224 -418L1221 -429L1239 -442L1248 -455L1249 -462L1243 -465L1216 -463L1190 -477L1147 -471L1123 -453L1078 -443L1052 -430L1041 -433L1009 -425L989 -435L980 -432L973 -423L965 -384L930 -405L886 -395L872 -402L859 -398L856 -426L866 -439L897 -441L975 -502L1006 -531L1013 -542L1033 -551L1062 -556L1072 -546L1093 -551L1124 -551L1144 -554L1165 -563L1202 -566L1228 -575L1235 -572L1233 -559L1241 -553L1271 -550L1291 -561L1307 -577L1301 -587L1300 -599L1305 -612L1312 -622L1330 -636L1360 -674L1364 -695L1361 -720L1372 -738L1413 -752L1415 -744L1399 -728L1379 -717L1377 -712L1385 -703L1387 -684L1407 -675L1415 -677L1430 -695L1500 -722L1527 -747L1549 -784L1580 -801L1594 -814L1604 -850L1628 -888L1638 -923L1649 -941L1651 -962L1650 -975L1645 -986L1623 -992L1637 -1002L1646 -1026L1639 -1053L1643 -1067L1670 -1085L1675 -1101L1673 -1116L1679 -1123L1700 -1120L1704 -1089L1710 -1083L1727 -1094L1742 -1088L1751 -1099L1755 -1110L1753 -1121L1749 -1124L1715 -1114L1715 -1125L1720 -1143L1727 -1150L1741 -1146L1752 -1137ZM285 548L280 564L271 565L267 556L270 553L278 554L286 541L288 543L285 548ZM250 572L232 571L232 568L238 565L240 559L254 564L250 572ZM385 526L370 527L371 513L385 526ZM629 335L602 354L595 356L598 367L588 374L589 385L576 391L576 380L583 369L583 357L591 353L602 341L597 337L598 331L610 336L615 333L628 312L635 319L629 335ZM693 228L684 227L685 210L689 209L694 223L693 228ZM732 179L724 187L707 175L721 164L737 160L753 148L754 157L732 173L732 179ZM721 190L713 190L710 181L721 190ZM1632 -306L1626 -308L1626 -313L1635 -309L1632 -306ZM-244 550L-247 556L-252 555L-253 550L-251 545L-244 550ZM75 -149L68 -146L45 -155L29 -164L18 -181L40 -176L50 -164L70 -155L75 -149ZM112 4L89 -1L84 -14L96 -14L111 -7L115 -3L112 4ZM102 32L90 26L92 23L97 22L102 32ZM122 11L121 15L118 15L115 7L122 5L122 11ZM-102 454L-109 459L-113 457L-111 436L-106 435L-100 441L-102 454ZM-919 891L-916 894L-907 892L-909 903L-916 899L-928 900L-930 897L-926 893L-919 891ZM22 191L11 194L11 186L18 180L22 191ZM-645 720L-644 724L-658 710L-653 710L-645 720ZM-711 840L-713 842L-718 830L-712 823L-705 825L-710 830L-711 840ZM-724 836L-734 838L-723 829L-724 836ZM-1128 849L-1147 834L-1157 839L-1172 840L-1175 836L-1182 839L-1189 829L-1197 828L-1207 821L-1215 808L-1236 800L-1242 802L-1242 776L-1251 766L-1251 750L-1249 743L-1238 736L-1232 722L-1252 709L-1275 714L-1286 703L-1299 703L-1313 708L-1326 697L-1338 693L-1348 676L-1362 666L-1397 686L-1403 709L-1413 718L-1427 720L-1440 730L-1446 729L-1454 719L-1460 720L-1468 725L-1472 746L-1472 722L-1472 885L-1472 -1800L-1472 -1175L-1472 -1180L-1429 -1188L-1429 -1166L-1398 -1164L-1387 -1160L-1368 -1174L-1232 -1229L-1111 -1245L-1066 -1242L-1010 -1244L-918 -1277L-865 -1334L-818 -1350L-799 -1366L-785 -1371L-785 -1382L-794 -1394L-814 -1411L-831 -1437L-812 -1483L-788 -1506L-744 -1506L-728 -1492L-718 -1488L-642 -1475L-599 -1497L-570 -1520L-558 -1539L-542 -1542L-527 -1538L-505 -1539L-461 -1546L-439 -1563L-416 -1574L-412 -1580L-414 -1589L-410 -1596L-384 -1629L-359 -1639L-317 -1636L-308 -1659L-299 -1659L-282 -1652L-254 -1667L-233 -1672L-197 -1669L-187 -1676L-159 -1664L-144 -1661L-112 -1661L-98 -1667L-95 -1686L-105 -1698L-112 -1715L-145 -1741L-148 -1747L-159 -1753L-166 -1765L-194 -1776L-217 -1798L-280 -1799L-316 -1765L-340 -1781L-367 -1787L-413 -1786L-442 -1769L-466 -1787L-474 -1800L849 -1800L841 -1800L853 -1793L863 -1771L866 -1769L894 -1773L934 -1768L994 -1771L1014 -1795L1041 -1800L1185 -1800L1175 -1800L1191 -1771L1177 -1752L1168 -1745L1151 -1741L1140 -1730L1143 -1713L1132 -1695L1128 -1671L1114 -1650L1117 -1637L1114 -1625L1100 -1614L1101 -1607L1095 -1595L1084 -1588L1077 -1561L1055 -1549L1049 -1532L1049 -1513L1034 -1503L951 -1524L940 -1533L923 -1521L916 -1508L905 -1498L873 -1491L864 -1485L863 -1480L871 -1466L888 -1407L884 -1400L881 -1370L882 -1350L887 -1347L888 -1338L881 -1314L874 -1304L872 -1290L861 -1285L830 -1281L816 -1273L817 -1269L829 -1262L830 -1257L825 -1254L805 -1269L801 -1274L800 -1289L787 -1297L771 -1300L760 -1278L753 -1245L738 -1239L729 -1244L720 -1241L712 -1231L710 -1222L686 -1204L610 -1199L611 -1186L631 -1161L632 -1156L619 -1139L607 -1145L579 -1144L535 -1153L520 -1174L511 -1178L496 -1172L485 -1164L475 -1136L432 -1090L410 -1087L402 -1078L382 -1066L353 -1055L346 -1047L337 -1046L293 -1010L291 -1000L283 -992L269 -984L239 -982L230 -988L223 -979L204 -976L193 -969L176 -967L170 -962L159 -960L116 -937L85 -905L75 -900L59 -900L55 -895L56 -886L28 -881L14 -873L9 -892L59 -911L54 -922L71 -939L24 -939L26 -945L23 -955L45 -964L41 -976L45 -985L69 -995L103 -1036L109 -1050L110 -1054L102 -1060L99 -1069L74 -1084L72 -1097L63 -1085L15 -1090L-20 -1059L-45 -1023L-122 -990L-139 -975L-151 -956L-154 -941L-175 -918L-206 -918L-234 -907L-247 -919L-256 -923L-271 -919L-278 -913L-298 -869L-290 -842L-280 -831L-259 -818L-213 -810L-191 -813L-178 -804L-166 -770L-174 -764L-177 -733L-163 -720L-134 -713L-107 -715L-96 -725L-97 -735L-73 -749L-60 -762L-64 -768L-22 -783L4 -773L19 -760L34 -758L55 -746L83 -744L92 -753L116 -740L144 -740L136 -732L137 -718L125 -707L132 -700L131 -695L116 -683L107 -685L101 -696L81 -696L5 -661L-16 -663L-18 -661L-10 -654L-9 -644L-19 -646L-25 -641L-28 -617L-31 -613L-52 -605L-58 -611L-58 -623L-71 -620L-78 -612L-71 -602L-62 -598L-82 -586L-88 -574L-111 -559L-128 -536L-136 -530L-143 -511L-154 -501L-159 -485L-156 -475L-143 -475L-123 -458L-90 -445L-63 -427L-43 -364L-11 -302L-9 -284L-13 -276L-13 -266L-1 -257L30 -243L35 -237L35 -221L39 -215L59 -205L72 -190L75 -170L66 -170L30 -186L-2 -187L-18 -203L-42 -211L-84 -194L-70 -191L-43 -202L-25 -198L-18 -182L5 -172L30 -148L57 -132L72 -106L76 -92L36 -79L27 -70L-0 -56L-9 -39L-15 -35L-48 -39L-70 -24L-56 -25L-44 -30L-32 -13L-8 -16L14 -30L22 -30L37 -23L59 2L94 13L44 52L60 49L77 37L82 39L84 51L79 87L74 87L69 77L62 74L46 76L39 87L58 99L59 105L55 108L47 107L57 115L54 123L45 129L41 136L53 171L44 168L31 177L24 178L19 165L13 167L-4 196L-22 199L-14 206L-14 211L-27 225L-29 236L-36 242L-32 252L-34 259L-53 284L-62 290L-75 311L-79 333L-83 337L-89 341L-97 339L-97 332L-102 326L-102 315L-112 327L-122 321L-118 338L-110 339L-105 345L-97 367L-133 395L-161 388L-150 403L-144 405L-130 399L-119 400L-117 408L-126 441L-119 461L-122 463L-137 454L-158 455L-161 459L-158 465L-148 477L-175 479L-181 487L-177 500L-181 507L-205 516L-197 525L-203 538L-211 542L-224 540L-234 543L-243 537L-252 537L-259 544L-259 552L-274 553L-270 560L-258 562L-255 575L-274 599L-282 599L-292 616L-306 616L-309 621L-306 626L-315 641L-318 629L-321 629L-339 642L-354 635L-358 655L-371 664L-379 665L-372 672L-375 677L-386 682L-388 699L-392 705L-411 702L-419 711L-446 720L-464 715L-471 718L-476 728L-486 728L-503 718L-527 732L-532 738L-541 737L-545 726L-550 725L-559 738L-558 747L-577 741L-583 746L-596 743L-605 749L-621 739L-639 714L-642 698L-639 687L-648 690L-654 695L-654 706L-664 709L-645 741L-645 760L-642 765L-645 778L-650 776L-651 780L-670 791L-680 792L-685 779L-692 788L-697 809L-701 812L-709 805L-729 822L-743 812L-742 804L-748 802L-746 820L-753 826L-784 815L-790 828L-799 828L-814 844L-832 846L-838 851L-865 849L-866 857L-886 861L-904 879L-913 877L-917 866L-920 883L-936 896L-939 906L-937 914L-921 916L-919 921L-925 933L-908 948L-908 954L-914 964L-923 971L-942 974L-958 971L-963 964L-963 959L-954 960L-955 955L-965 949L-971 938L-969 929L-982 908L-978 895L-980 887L-973 877L-972 866L-959 862L-958 852L-968 852L-973 844L-980 847L-990 831L-994 831L-992 846L-1009 855L-1026 857L-1032 856L-1028 846L-1030 841L-1037 837L-1059 837L-1073 823L-1074 810L-1084 810L-1080 833L-1082 837L-1087 839L-1098 831L-1104 844L-1113 843L-1128 849ZM-876 1001L-869 1012L-865 1034L-881 1044L-897 1071L-914 1125L-948 1150L-947 1155L-951 1158L-968 1160L-978 1174L-994 1178L-1010 1170L-1037 1163L-1065 1146L-1071 1113L-1068 1070L-1015 1024L-1024 1023L-1016 1012L-995 1010L-983 1002L-961 1004L-945 1001L-934 994L-923 996L-919 1002L-919 994L-902 1002L-902 993L-896 986L-876 1001ZM-605 749L-596 743L-583 746L-577 760L-583 770L-603 762L-612 763L-615 757L-605 749ZM-586 779L-588 780L-595 771L-585 774L-586 779ZM-606 779L-620 776L-602 767L-606 779ZM-1167 1530L-1166 1535L-1174 1555L-1181 1563L-1184 1587L-1179 1600L-1160 1600L-1472 1600L-1472 1558L-1472 1564L-1453 1560L-1437 1563L-1405 1557L-1388 1563L-1383 1577L-1370 1565L-1364 1580L-1355 1589L-1339 1584L-1322 1592L-1314 1600L-1293 1600L-1288 1595L-1301 1566L-1285 1563L-1280 1552L-1268 1555L-1256 1542L-1228 1569L-1218 1567L-1210 1557L-1203 1558L-1187 1541L-1176 1544L-1167 1530Z"};
+  const CITY = {
+    "台北":[121.565,25.033],"新北":[121.465,25.012],"基隆":[121.739,25.128],"桃園":[121.301,24.994],
+    "新竹":[120.969,24.804],"台中":[120.674,24.147],"彰化":[120.542,24.081],"嘉義":[120.449,23.480],
+    "台南":[120.213,22.999],"高雄":[120.301,22.627],"屏東":[120.488,22.670],"宜蘭":[121.753,24.757],
+    "花蓮":[121.601,23.991],"台東":[121.144,22.756],
+    "首爾":[126.978,37.566],"仁川":[126.705,37.456],"釜山":[129.075,35.180],"大邱":[128.601,35.871],
+    "東京":[139.692,35.690],"橫濱":[139.638,35.444],"埼玉":[139.649,35.861],"千葉":[140.123,35.605],
+    "大阪":[135.502,34.694],"京都":[135.768,35.012],"名古屋":[136.906,35.181],"福岡":[130.402,33.590],
+    "札幌":[141.354,43.062],"沖繩":[127.681,26.212],"那霸":[127.681,26.212],
+    "香港":[114.169,22.319],"澳門":[113.543,22.199],"上海":[121.473,31.230],
+    "taipei":[121.565,25.033],"kaohsiung":[120.301,22.627],"taichung":[120.674,24.147],
+    "seoul":[126.978,37.566],"busan":[129.075,35.180],"incheon":[126.705,37.456],
+    "tokyo":[139.692,35.690],"osaka":[135.502,34.694],"yokohama":[139.638,35.444],"fukuoka":[130.402,33.590],
+    "hong kong":[114.169,22.319],
+  };
+  const cityKey = s => (s || "").trim().replace(/臺/g, "台").replace(/[市縣]$/, "").toLowerCase();
+  const lookup = s => { const k = cityKey(s); return k ? (CITY[k] || CITY[k.replace(/\s+/g, "")] || null) : null; };
+  const proj = ([lon, lat]) => [(lon - GEO.lon0) * GEO.cos * GEO.k, -(lat - GEO.lat0) * GEO.k];
+
+  function svgEl(tag, attrs) {
+    const e = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  // Taiwan frame (lon/lat box) — when you are in Taiwan the map stays zoomed on the island
+  const TW = {x0: proj([119.25, 25.45])[0], x1: proj([122.35, 21.75])[0], y0: proj([119.25, 25.45])[1], y1: proj([122.35, 21.75])[1]};
+  const inTW = p => p && p[0] >= TW.x0 && p[0] <= TW.x1 && p[1] >= TW.y0 && p[1] <= TW.y1;
+  const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const lerpV = (a, b, t) => ({x0: lerp(a.x0, b.x0, t), x1: lerp(a.x1, b.x1, t), y0: lerp(a.y0, b.y0, t), y1: lerp(a.y1, b.y1, t)});
+
+  function frameAround(pts, minSpan) {
+    let x0 = Math.min(...pts.map(p => p[0])), x1 = Math.max(...pts.map(p => p[0]));
+    let y0 = Math.min(...pts.map(p => p[1])), y1 = Math.max(...pts.map(p => p[1]));
+    if (x1 - x0 < minSpan) { const c = (x0 + x1) / 2; x0 = c - minSpan / 2; x1 = c + minSpan / 2; }
+    if (y1 - y0 < minSpan) { const c = (y0 + y1) / 2; y0 = c - minSpan / 2; y1 = c + minSpan / 2; }
+    const px = (x1 - x0) * 0.25, py = (y1 - y0) * 0.25;
+    return {x0: x0 - px, x1: x1 + px, y0: y0 - py * 1.3, y1: y1 + py};
+  }
+  // where you stand at stop i: in Taiwan → the island; abroad → that city and its surroundings
+  const homeFrame = p => !p ? TW : inTW(p) ? TW : frameAround([p], 520);
+  // a frame that shows the whole leg you are travelling
+  const legFrame = (a, b) => (inTW(a) && inTW(b)) ? TW : frameAround([a, b], 520);
+
+  class MapView {
+    constructor(el) {
+      this.el = el;
+      this.svg = svgEl("svg", {"aria-hidden": "true"});
+      this.land = svgEl("g", {});
+      this.land.appendChild(svgEl("path", {d: GEO.d, class: "land", "vector-effect": "non-scaling-stroke"}));
+      this.ovl = svgEl("g", {});
+      this.svg.append(this.land, this.ovl);
+      el.appendChild(this.svg);
+      this.i = -1; this.view = null; this.pos = null; this.raf = 0;
+    }
+    locs() {
+      const loc = []; let last = null;
+      list.forEach((c, j) => { const p = lookup(c.city); if (p) last = proj(p); loc[j] = last; });
+      return loc;
+    }
+    update(i) {
+      if (!list.length) { this.ovl.textContent = ""; return; }
+      const loc = this.locs(), dest = loc[i];
+      const same = i === this.i;
+      cancelAnimationFrame(this.raf); clearTimeout(this.timer);
+      const from = this.pos, startView = this.view, prevI = this.i;
+      this.i = i;
+      const endView = homeFrame(dest);
+      if (same || !from || !dest || !startView || reduceMotion() || !this.el.clientWidth) {
+        this.view = endView; this.pos = dest;
+        this.draw(loc, i, endView, dest, null);
+        return;
+      }
+      const moving = from[0] !== dest[0] || from[1] !== dest[1];
+      const midView = moving ? legFrame(from, dest) : endView;
+      const zoomOut = Math.abs(midView.x1 - midView.x0 - (startView.x1 - startView.x0)) > 1 || Math.abs(midView.x0 - startView.x0) > 1;
+      const zoomIn = Math.abs(endView.x1 - endView.x0 - (midView.x1 - midView.x0)) > 1 || Math.abs(endView.x0 - midView.x0) > 1;
+      // phases: frame the leg → travel → settle on where you arrived
+      const A = zoomOut ? 650 : 0, B = moving ? 1100 : 0, C = zoomIn ? 650 : 0;
+      const total = Math.max(A + B + C, 300);
+      const forward = i > prevI;
+      const t0 = performance.now();
+      const step = now => {
+        const e = Math.max(0, now - t0);
+        let view, pos, trail = null;
+        if (e < A) { view = lerpV(startView, midView, ease(e / A)); pos = from; }
+        else if (e < A + B) {
+          const k = ease((e - A) / B);
+          view = midView; pos = [lerp(from[0], dest[0], k), lerp(from[1], dest[1], k)];
+          if (forward) trail = [from, pos];
+        } else if (e < total) { view = lerpV(midView, endView, C ? ease((e - A - B) / C) : 1); pos = dest; }
+        else { view = endView; pos = dest; }
+        if (e >= A + B && forward && moving) trail = [from, dest];
+        this.view = view; this.pos = pos;
+        this.draw(loc, i, view, pos, trail, forward ? i - 1 : i);
+        if (e < total) this.raf = requestAnimationFrame(step);
+      };
+      this.raf = requestAnimationFrame(step);
+      // a background tab pauses animation frames: still end up at the right place
+      this.timer = setTimeout(() => { cancelAnimationFrame(this.raf); step(t0 + total + 1); }, total + 250);
+    }
+    draw(loc, i, v, pos, trail, doneUpTo = i) {
+      const w = this.el.clientWidth, h = this.el.clientHeight;
+      this.ovl.textContent = "";
+      if (!w || !h) return;
+      const s = Math.min(w / (v.x1 - v.x0), h / (v.y1 - v.y0));
+      const ox = w / 2 - s * (v.x0 + v.x1) / 2, oy = h / 2 - s * (v.y0 + v.y1) / 2;
+      this.svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+      this.land.setAttribute("transform", `translate(${ox} ${oy}) scale(${s})`);
+      const P = p => [ox + s * p[0], oy + s * p[1]];
+      const leg = (a, b, q) => {
+        const [ax, ay] = P(a), [bx, by] = P(b);
+        this.ovl.appendChild(svgEl("line", {x1: ax, y1: ay, x2: bx, y2: by, stroke: `var(--line-${q + 1})`, "stroke-width": 3}));
+      };
+      // legs already travelled
+      for (let j = 1; j <= Math.min(doneUpTo, i); j++) {
+        const a = loc[j - 1], b = loc[j];
+        if (a && b && (a[0] !== b[0] || a[1] !== b[1])) leg(a, b, quarter(list[j - 1].date));
+      }
+      if (trail && i > 0) leg(trail[0], trail[1], quarter(list[i - 1].date));
+      // every city of the year
+      const seen = new Map();
+      list.forEach(c => { const p = lookup(c.city); if (p && !seen.has(cityKey(c.city))) seen.set(cityKey(c.city), {name: c.city.trim(), p: proj(p)}); });
+      const here = loc[i];
+      const arrived = pos && here && Math.abs(pos[0] - here[0]) < 0.01 && Math.abs(pos[1] - here[1]) < 0.01;
+      seen.forEach(({name, p}) => {
+        const [cx, cy] = P(p);
+        if (cx < -40 || cy < -40 || cx > w + 40 || cy > h + 40) return;
+        const isHere = arrived && p[0] === here[0] && p[1] === here[1];
+        if (!isHere) this.ovl.appendChild(svgEl("circle", {cx, cy, r: 4, class: "city"}));
+        const t = svgEl("text", {x: cx + 14, y: cy + 4, class: "city-label" + (isHere ? " now" : "")});
+        t.textContent = name;
+        this.ovl.appendChild(t);
+      });
+      // you
+      const c = list[i], col = `var(--line-${quarter(c.date) + 1})`;
+      if (pos) {
+        const [hx, hy] = P(pos);
+        this.ovl.appendChild(svgEl("circle", {cx: hx, cy: hy, r: 13, fill: "none", stroke: col, "stroke-width": 2}));
+        this.ovl.appendChild(svgEl("circle", {cx: hx, cy: hy, r: 7, fill: col, stroke: "var(--canvas)", "stroke-width": 2}));
+      }
+      const t = svgEl("text", {x: 10, y: 20, class: "where"});
+      const name = lookup(c.city) ? c.city.trim() : "上一站";
+      t.textContent = `${arrived || !pos ? "你在" : "前往"} ${here ? name : "—"}　${pad(i + 1)}/${pad(list.length)}`;
+      this.ovl.appendChild(t);
+      if (!lookup(c.city)) {
+        const n = svgEl("text", {x: 10, y: 38, class: "where-note"});
+        n.textContent = c.city ? `地圖找不到「${clip(c.city, 10)}」，停在上一站` : "這一站沒填城市，停在上一站";
+        this.ovl.appendChild(n);
+      }
+    }
+  }
+  const mapDesk = new MapView($("mapDesk"));
+  const mapMob = new MapView($("mapMob"));
+  let mobCur = 0;
+  const isMobile = () => matchMedia("(max-width:700px)").matches;
+  function mobileScroll() {
+    if (!isMobile() || !list.length) return;
+    const line = $("mapMob").getBoundingClientRect().bottom + 80;
+    let k = 0;
+    document.querySelectorAll("#mList .m-st").forEach((li, j) => { if (li.getBoundingClientRect().top <= line) k = j; });
+    if (k !== mobCur || mobileScroll.force) { mobCur = k; mapMob.update(k); }
+  }
+  addEventListener("scroll", () => mobileScroll(), {passive: true});
+  addEventListener("resize", () => { mobileScroll.force = true; mobileScroll(); mobileScroll.force = false; }, {passive: true});
+
+  /* ---------- Render all ---------- */
+  function render() {
+    const cities = new Set(list.map(c => (c.city || "").trim()).filter(Boolean));
+    const t = loaded ? (list.length ? `已看 ${list.length} 場　·　${cities.size} 個城市` : "還沒有任何一站") : "讀取中";
+    $("tally").textContent = t; $("mTally").textContent = t;
+    document.documentElement.style.setProperty("--n", Math.max(list.length, 1));
+    $("viewer").hidden = !list.length; $("empty").hidden = !!list.length;
+    $("emptyTitle").textContent = loaded ? "路線還沒有站" : "讀取中…";
+    $("emptyText").textContent = canEdit
+      ? "每看完一場演唱會，就按右上角「新增一站」。一月到十二月分成四段，每一季一個線色。"
+      : "每看完一場演唱會，這條線就多一站。一月到十二月分成四段，每一季一個線色。";
+    $("addBtn").hidden = !canEdit;
+    drawRoute(); drawLegend(); drawMobile();
+    cur = Math.min(cur, Math.max(list.length - 1, 0));
+    onScroll(true);
+    mobileScroll.force = true; mobileScroll(); mobileScroll.force = false;
+  }
+
+  /* ---------- Scroll rail ---------- */
+  function idxFromScroll() {
+    const h = innerHeight;
+    return Math.max(0, Math.min(list.length - 1, Math.floor((scrollY + h * 0.35 - 58) / (0.9 * h))));
+  }
+  function onScroll(force) {
+    if (!list.length) return;
+    const i = idxFromScroll();
+    if (i !== cur || force === true) { cur = i; showStation(); }
+  }
+  function jumpTo(i) {
+    const h = innerHeight;
+    window.scrollTo({top: Math.max(0, i * 0.9 * h + 58 - 0.35 * h + 1), behavior: "instant"});
+    cur = i; showStation();
+  }
+  addEventListener("scroll", onScroll, {passive: true});
+  addEventListener("resize", () => onScroll(true), {passive: true});
+
+  /* ---------- Editor ---------- */
+  let armed = false;
+  function openSheet(c) {
+    editingId = c ? c.id : null; armed = false;
+    $("sheetTitle").textContent = c ? "編輯這一站" : "新增一站";
+    $("fArtist").value = c?.artist || ""; $("fTour").value = c?.tour || "";
+    $("fDate").value = c?.date || ""; $("fCity").value = c?.city || "";
+    $("fVenue").value = c?.venue || ""; $("fSeat").value = c?.seat || "";
+    $("fNote").value = c?.note || ""; $("fPhoto").value = "";
+    $("photoHint").textContent = c?.photoId ? "已有一張照片；選新的會替換它。" : "選一張照片，會完整顯示不裁切。";
+    $("fPhoto").closest(".field").hidden = !assets;
+    $("formErr").hidden = true;
+    const del = $("deleteBtn"); del.hidden = !c; del.textContent = "刪除這一站"; del.classList.remove("danger-armed");
+    $("sheet").hidden = false; $("fArtist").focus();
+  }
+  function closeSheet() { $("sheet").hidden = true; editingId = null; }
+  function fail(msg) { const e = $("formErr"); e.textContent = msg; e.hidden = false; }
+
+  $("addBtn").addEventListener("click", () => openSheet(null));
+  $("editBtn").addEventListener("click", () => list[cur] && openSheet(list[cur]));
+  $("cancelBtn").addEventListener("click", closeSheet);
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("sheet").hidden) closeSheet(); });
+
+  $("form").addEventListener("submit", async e => {
+    e.preventDefault();
+    if (!db) return fail("現在連不到資料，稍後再試。");
+    const artist = $("fArtist").value.trim(), date = $("fDate").value;
+    if (!artist) return fail("請填演出者。");
+    if (!/^2026-\d\d-\d\d$/.test(date)) return fail("請選 2026 年內的日期。");
+    const save = $("saveBtn"); save.disabled = true; save.textContent = "儲存中…";
+    try {
+      const prev = editingId ? list.find(c => c.id === editingId) : null;
+      const body = {
+        artist, date, tour: $("fTour").value.trim(), city: $("fCity").value.trim(),
+        venue: $("fVenue").value.trim(), seat: $("fSeat").value.trim(), note: $("fNote").value.trim(),
+        photoId: prev?.photoId || "", updatedAt: new Date().toISOString(),
+      };
+      const file = $("fPhoto").files[0];
+      if (file && assets) {
+        save.textContent = "上傳照片中…";
+        const up = await assets.upload(file);
+        body.photoId = up.id;
+      }
+      const ref = editingId ? db.collection("concerts").doc(editingId) : db.collection("concerts").doc();
+      await ref.set(body);
+      if (file && prev?.photoId && prev.photoId !== body.photoId) { try { await assets.delete(prev.photoId); } catch {} }
+      const id = ref.id; closeSheet();
+      setTimeout(() => { const i = list.findIndex(c => c.id === id); if (i >= 0) jumpTo(i); }, 50);
+    } catch (err) {
+      fail(err?.code === "quota_exceeded" ? "資料庫已滿，刪掉幾站再新增。" : "沒有存成功：" + (err?.message || "請稍後再試。"));
+    } finally { save.disabled = false; save.textContent = "儲存"; }
+  });
+
+  $("deleteBtn").addEventListener("click", async () => {
+    const b = $("deleteBtn");
+    if (!armed) { armed = true; b.textContent = "再按一次確定刪除"; b.classList.add("danger-armed"); return; }
+    const c = list.find(x => x.id === editingId); if (!c || !db) return;
+    b.disabled = true;
+    try {
+      await db.collection("concerts").doc(c.id).delete();
+      if (c.photoId && assets) { try { await assets.delete(c.photoId); } catch {} }
+      closeSheet();
+    } catch (err) { fail("沒有刪除成功：" + (err?.message || "請稍後再試。")); }
+    finally { b.disabled = false; }
+  });
+
+  /* ---------- Boot ---------- */
+  render();
+  list = [{"artist": "Golden Disc Awards", "tour": "The 40th Golden Disc Awards", "date": "2026-01-10", "venue": "台北大巨蛋", "city": "台北", "seat": "", "note": "", "id": "c01", "photoId": ""}, {"artist": "NCT WISH", "tour": "1st CONCERT TOUR 'INTO THE WISH : Our WISH' IN TAIPEI", "date": "2026-02-28", "venue": "", "city": "台北", "seat": "", "note": "", "id": "c02", "photoId": ""}, {"artist": "TWICE", "tour": "\u003cTHIS IS FOR> WORLD TOUR IN TAIPEI", "date": "2026-03-21", "venue": "", "city": "台北", "seat": "", "note": "", "id": "c03", "photoId": ""}, {"artist": "NCT WISH", "tour": "1st CONCERT TOUR 'INTO THE WISH : Our WISH' IN KAOHSIUNG", "date": "2026-03-28", "venue": "", "city": "高雄", "seat": "", "note": "", "id": "c04", "photoId": ""}, {"artist": "CXM", "tour": "[DOUBLE UP] LIVE PARTY IN KAOHSIUNG", "date": "2026-04-25", "venue": "", "city": "高雄", "seat": "", "note": "", "id": "c05", "photoId": ""}, {"artist": "RIIZE", "tour": "中信兄弟「Channel B」棒球音樂祭", "date": "2026-05-24", "venue": "台北大巨蛋", "city": "台北", "seat": "", "note": "", "id": "c06", "photoId": ""}, {"artist": "NCT WISH", "tour": "【Ode to Love - The 1st Album】發行紀念公開簽名會 in TAIPEI", "date": "2026-06-12", "venue": "", "city": "台北", "seat": "", "note": "", "id": "c07", "photoId": ""}, {"artist": "RIIZE", "tour": "高雄啤酒節", "date": "2026-07-05", "venue": "", "city": "高雄", "seat": "", "note": "", "id": "c08", "photoId": ""}, {"artist": "TWICE", "tour": "\u003cTHIS IS FOR> WORLD TOUR FINALE in SEOUL", "date": "2026-07-11", "venue": "", "city": "首爾", "seat": "", "note": "", "id": "c09", "photoId": ""}, {"artist": "滅火器", "tour": "ON FIRE DAY 2026 滅火器台北小巨蛋演唱會", "date": "2026-07-18", "venue": "台北小巨蛋", "city": "台北", "seat": "", "note": "", "id": "c10", "photoId": ""}, {"artist": "DxS", "tour": "[SERENADE] ON STAGE-KAOHSIUNG", "date": "2026-07-25", "venue": "", "city": "高雄", "seat": "", "note": "", "id": "c11", "photoId": ""}, {"artist": "NCT WISH", "tour": "味全龍星光亞洲音樂祭", "date": "2026-08-01", "venue": "台北大巨蛋", "city": "台北", "seat": "", "note": "", "id": "c12", "photoId": ""}, {"artist": "NCT WISH", "tour": "2ND ANNIVERSARY FANMEETING IN TAIPEI", "date": "2026-09-05", "venue": "", "city": "台北", "seat": "", "note": "", "id": "c13", "photoId": ""}, {"artist": "ITZY", "tour": "3RD WORLD TOUR \u003cTUNNEL VISION> in TAIPEI", "date": "2026-09-05", "venue": "", "city": "台北", "seat": "", "note": "", "id": "c14", "photoId": ""}];
+  loaded = true; canEdit = false; render();
+})();
+</script>
+</body></html>
